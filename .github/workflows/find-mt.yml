@@ -1,0 +1,19 @@
+name: Find Windows mt.exe
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - windows-2022
+          - windows-2025
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect mt.exe discovery
+        run: python .github/scripts/inspect_mt.py
