@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 
 
-def find_vcvarsall():
+def find_vcvarsall_by_glob():
     patterns = []
     for envvar in ("ProgramFiles", "ProgramFiles(x86)"):
         root = os.environ.get(envvar)
@@ -26,7 +26,41 @@ def find_vcvarsall():
     paths = sorted(
         (path for pattern in patterns for path in glob.glob(pattern)), reverse=True
     )
-    print("vcvarsall candidates:")
+    print("glob vcvarsall candidates:")
+    for path in paths:
+        print(f"  {path}")
+    return paths[0] if paths else None
+
+
+def find_vcvarsall_by_vswhere():
+    program_files_x86 = os.environ.get("ProgramFiles(x86)")
+    if not program_files_x86:
+        print("ProgramFiles(x86) is not set")
+        return None
+
+    vswhere = os.path.join(
+        program_files_x86, "Microsoft Visual Studio", "Installer", "vswhere.exe"
+    )
+    print(f"vswhere: {vswhere}")
+    if not os.path.exists(vswhere):
+        print("vswhere.exe does not exist")
+        return None
+
+    out = subprocess.check_output(
+        [
+            vswhere,
+            "-latest",
+            "-products",
+            "*",
+            "-find",
+            r"VC\Auxiliary\Build\vcvarsall.bat",
+            "-utf8",
+        ],
+        encoding="utf-8",
+        errors="replace",
+    )
+    paths = [line.strip() for line in out.splitlines() if line.strip()]
+    print("vswhere vcvarsall candidates:")
     for path in paths:
         print(f"  {path}")
     return paths[0] if paths else None
@@ -77,10 +111,12 @@ def main():
         for path in sorted(glob.glob(mt_glob), reverse=True):
             print(f"  {path}")
 
-    vcvarsall = find_vcvarsall()
+    glob_vcvarsall = find_vcvarsall_by_glob()
+    vswhere_vcvarsall = find_vcvarsall_by_vswhere()
+    vcvarsall = vswhere_vcvarsall or glob_vcvarsall
     if vcvarsall is None:
         raise RuntimeError("vcvarsall.bat not found")
-    print(f"selected vcvarsall: {vcvarsall}")
+    print(f"selected vcvarsall (vswhere first): {vcvarsall}")
 
     base_env = dict(os.environ)
     captured = capture_vcvars_env(vcvarsall, base_env)
